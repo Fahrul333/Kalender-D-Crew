@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalender Jadwal Lengkap</title>
+    <style>
+        /* --- CSS VARIABLES & THEME --- */
+        :root {
+            --bg-body: #f4f7f6;
+            --bg-container: #ffffff;
+            --text-main: #333333;
+            --text-muted: #777777;
+            --border-color: #e0e0e0;
+            --shadow: 0 10px 30px rgba(0,0,0,0.05);
+            --day-hover: #f0f4ff;
+            --today-bg: #e8eaf6;
+            --modal-overlay: rgba(0,0,0,0.5);
+            
+            /* Warna Kategori Default */
+            --cat-pribadi: #ff7043; /* Orange */
+            --cat-kuliah: #42a5f5;  /* Blue */
+            --cat-organisasi: #7e57c2; /* Purple */
+            --cat-kerja: #26a69a;   /* Teal */
+            --primary-btn: #5c6bc0;
+        }
+
+        /* Tema Gelap */
+        body.dark-mode {
+            --bg-body: #121212;
+            --bg-container: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border-color: #333333;
+            --shadow: 0 10px 30px rgba(0,0,0,0.5);
+            --day-hover: #2c2c2c;
+            --today-bg: #283593;
+        }
+
+        /* --- GLOBAL STYLES --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+            padding: 20px;
+        }
+
+        .calendar-container {
+            background-color: var(--bg-container);
+            width: 100%;
+            max-width: 900px; /* Sedikit lebih lebar */
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: background-color 0.3s;
+        }
+
+        /* --- HEADER --- */
+        header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        #monthDisplay { font-size: 1.5rem; font-weight: 700; color: var(--primary-btn); }
+        .btn-group { display: flex; gap: 5px; }
+
+        button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: 0.2s;
+        }
+        button:hover { background-color: var(--day-hover); }
+        .btn-primary { background-color: var(--primary-btn); color: white; }
+        .btn-primary:hover { opacity: 0.9; background-color: var(--primary-btn); }
+
+        /* Toggle Switch */
+        .theme-switch-wrapper { display: flex; align-items: center; }
+        .theme-switch { display: inline-block; height: 24px; position: relative; width: 48px; }
+        .theme-switch input { display: none; }
+        .slider { background-color: #ccc; bottom: 0; cursor: pointer; left: 0; position: absolute; right: 0; top: 0; transition: .4s; border-radius: 34px; }
+        .slider:before { background-color: white; bottom: 3px; content: ""; height: 18px; left: 3px; position: absolute; transition: .4s; width: 18px; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary-btn); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        /* --- GRID KALENDER --- */
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            padding: 10px 0;
+            background-color: var(--bg-container);
+            color: var(--text-muted);
+            font-weight: 600;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            padding: 10px;
+            gap: 5px;
+        }
+
+        .day {
+            height: 110px;
+            padding: 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            position: relative;
+            transition: transform 0.2s, background-color 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .day:hover:not(.padding) {
+            background-color: var(--day-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            z-index: 1;
+        }
+
+        .day.padding { cursor: default; opacity: 0.3; }
+        
+        .day.current-day {
+            background-color: var(--today-bg);
+            border: 2px solid var(--primary-btn);
+            font-weight: bold;
+        }
+
+        /* Event Styles di dalam Grid */
+        .event-indicator {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .event-pill {
+            font-size: 0.7rem;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+
+        /* --- MODAL POPUP (FORM LENGKAP) --- */
+        #eventModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--modal-overlay);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--bg-container);
+            padding: 25px;
+            border-radius: 16px;
+            width: 95%;
+            max-width: 500px; /* Lebih lebar untuk form lengkap */
+            box-shadow: var(--shadow);
+            animation: fadeIn 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto; /* Scroll jika layar pendek */
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        .modal-header { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
+        .modal-title { font-size: 1.2rem; font-weight: bold; }
+        #closeIcon { font-size: 1.5rem; padding: 0 5px; cursor: pointer; }
+
+        /* Form Styling */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            outline: none;
+            font-size: 0.95rem;
+        }
+
+        .form-control:focus { border-color: var(--primary-btn); }
+
+        /* Form Grid untuk Jam */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; border-top: 1px solid var(--border-color); padding-top: 15px; }
+        #deleteButton { background-color: #ef5350; color: white; display: none; margin-right: auto; }
+        #saveButton { background-color: var(--primary-btn); color: white; }
+        #closeButton { background-color: #9e9e9e; color: white; }
+
+        /* Responsif */
+        @media (max-width: 600px) {
+            .header-left { flex-direction: column; align-items: flex-start; }
+            .day { height: 80px; font-size: 0.9rem; }
+            .event-pill { font-size: 0.6rem; padding: 1px 3px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="calendar-container">
+        <header>
+            <div class="header-left">
+                <div id="monthDisplay"></div>
+                <div class="btn-group">
+                    <button id="prevButton">◀</button>
+                    <button id="nextButton">▶</button>
+                    <button id="todayButton" class="btn-primary">Hari Ini</button>
+                </div>
+            </div>
+            <div class="theme-switch-wrapper">
+                <label class="theme-switch" for="checkbox">
+                    <input type="checkbox" id="checkbox" />
+                    <div class="slider"></div>
+                </label>
+            </div>
+        </header>
+
+        <div class="weekdays">
+            <div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div><div>Min</div>
+        </div>
+
+        <div id="calendar" class="calendar-grid"></div>
+    </div>
+
+    <div id="eventModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div style="display: flex; flex-direction: column;">
+                    <span class="modal-title" id="modalTitle">Tambah Jadwal</span>
+                    <span id="selectedDateText" style="font-size: 0.85rem; color: var(--primary-btn);"></span>
+                </div>
+                <span id="closeIcon">✖</span>
+            </div>
+            
+            <div class="form-group">
+                <label>Nama Kegiatan</label>
+                <input type="text" id="inputTitle" class="form-control" placeholder="Contoh: Rapat Proker">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Jam Mulai</label>
+                    <input type="time" id="inputStart" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Jam Selesai</label>
+                    <input type="time" id="inputEnd" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Kategori</label>
+                    <select id="inputCategory" class="form-control">
+                        <option value="pribadi">Pribadi (Oranye)</option>
+                        <option value="kuliah">Kuliah (Biru)</option>
+                        <option value="organisasi">Organisasi (Ungu)</option>
+                        <option value="kerja">Kerja/Bisnis (Teal)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Lokasi (Opsional)</label>
+                    <input type="text" id="inputLocation" class="form-control" placeholder="Contoh: Ruang 304 / Zoom">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Deskripsi / Catatan</label>
+                <textarea id="inputDesc" class="form-control" rows="3" placeholder="Detail kegiatan..."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button id="deleteButton">Hapus</button>
+                <button id="closeButton">Batal</button>
+                <button id="saveButton">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* --- VARIABEL GLOBAL --- */
+        let nav = 0; 
+        let clicked = null; 
+        let events = localStorage.getItem('events') ? JSON.parse(localStorage.getItem('events')) : [];
+
+        // Mapping Warna Kategori
+        const categoryColors = {
+            pribadi: 'var(--cat-pribadi)',
+            kuliah: 'var(--cat-kuliah)',
+            organisasi: 'var(--cat-organisasi)',
+            kerja: 'var(--cat-kerja)'
+        };
+
+        // DOM Elements
+        const calendar = document.getElementById('calendar');
+        const monthDisplay = document.getElementById('monthDisplay');
+        const eventModal = document.getElementById('eventModal');
+        const deleteButton = document.getElementById('deleteButton');
+        const saveButton = document.getElementById('saveButton');
+        const closeButton = document.getElementById('closeButton');
+        const closeIcon = document.getElementById('closeIcon');
+        
+        // Inputs
+        const inputTitle = document.getElementById('inputTitle');
+        const inputStart = document.getElementById('inputStart');
+        const inputEnd = document.getElementById('inputEnd');
+        const inputCategory = document.getElementById('inputCategory');
+        const inputLocation = document.getElementById('inputLocation');
+        const inputDesc = document.getElementById('inputDesc');
+        const selectedDateText = document.getElementById('selectedDateText');
+
+        /* --- RENDER KALENDER --- */
+        function load() {
+            const dt = new Date();
+            if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+
+            const day = dt.getDate();
+            const month = dt.getMonth();
+            const year = dt.getFullYear();
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            monthDisplay.innerText = `${dt.toLocaleDateString('id-ID', { month: 'long' })} ${year}`;
+
+            calendar.innerHTML = '';
+
+            const dayOfWeek = firstDayOfMonth.getDay(); 
+            const paddingDays = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+            for(let i = 1; i <= paddingDays; i++) {
+                const padding = document.createElement('div');
+                padding.classList.add('day', 'padding');
+                calendar.appendChild(padding);
+            }
+
+            for(let i = 1; i <= daysInMonth; i++) {
+                const daySquare = document.createElement('div');
+                daySquare.classList.add('day');
+                
+                const dayString = `${i}/${month + 1}/${year}`;
+                
+                daySquare.innerHTML = `<span style="font-weight:bold; margin-bottom:2px;">${i}</span>`;
+
+                // Cari event di tanggal ini
+                const eventsForDay = events.filter(e => e.date === dayString);
+                
+                if (eventsForDay.length > 0) {
+                    const indicatorDiv = document.createElement('div');
+                    indicatorDiv.classList.add('event-indicator');
+                    
+                    eventsForDay.forEach(event => {
+                        const pill = document.createElement('div');
+                        pill.classList.add('event-pill');
+                        pill.style.backgroundColor = categoryColors[event.category] || categoryColors.pribadi;
+                        pill.innerText = event.title;
+                        indicatorDiv.appendChild(pill);
+                    });
+                    daySquare.appendChild(indicatorDiv);
+                }
+
+                // Highlight hari ini
+                const today = new Date();
+                if (i === today.getDate() && nav === 0 && month === today.getMonth()) {
+                    daySquare.classList.add('current-day');
+                }
+
+                daySquare.addEventListener('click', () => openModal(dayString));
+                calendar.appendChild(daySquare);
+            }
+        }
+
+        /* --- MODAL LOGIC --- */
+        function openModal(date) {
+            clicked = date;
+            // Kita ambil event PERTAMA saja untuk demo edit sederhana (bisa dikembangkan jadi list)
+            // Jika ada banyak event dalam 1 hari, kode ini akan mengambil yang pertama untuk diedit
+            // atau kosong jika belum ada.
+            const existingEvent = events.find(e => e.date === clicked);
+
+            // Teks Tanggal Header
+            const [d, m, y] = clicked.split('/');
+            const dateObj = new Date(y, m-1, d);
+            selectedDateText.innerText = dateObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+            if (existingEvent) {
+                document.getElementById('modalTitle').innerText = 'Edit Jadwal';
+                inputTitle.value = existingEvent.title;
+                inputStart.value = existingEvent.startTime || '';
+                inputEnd.value = existingEvent.endTime || '';
+                inputCategory.value = existingEvent.category || 'pribadi';
+                inputLocation.value = existingEvent.location || '';
+                inputDesc.value = existingEvent.desc || '';
+                deleteButton.style.display = 'block';
+            } else {
+                document.getElementById('modalTitle').innerText = 'Tambah Jadwal Baru';
+                // Reset Form
+                inputTitle.value = '';
+                inputStart.value = '08:00'; // Default jam
+                inputEnd.value = '09:00';
+                inputCategory.value = 'pribadi';
+                inputLocation.value = '';
+                inputDesc.value = '';
+                deleteButton.style.display = 'none';
+            }
+            eventModal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            eventModal.style.display = 'none';
+            clicked = null;
+            load();
+        }
+
+        function saveEvent() {
+            if (inputTitle.value) {
+                inputTitle.style.borderColor = '';
+                
+                // Hapus event lama di tanggal tsb (Sistem overwrite sederhana per tanggal)
+                // *Catatan: Jika ingin support multi-event per hari, logika filter ini perlu diubah*
+                // Untuk saat ini kita pakai "1 Tanggal = 1 Slot Event Utama" agar mudah dipahami
+                events = events.filter(e => e.date !== clicked);
+
+                events.push({
+                    date: clicked,
+                    title: inputTitle.value,
+                    startTime: inputStart.value,
+                    endTime: inputEnd.value,
+                    category: inputCategory.value,
+                    location: inputLocation.value,
+                    desc: inputDesc.value
+                });
+
+                localStorage.setItem('events', JSON.stringify(events));
+                closeModal();
+            } else {
+                inputTitle.style.borderColor = 'red';
+                alert('Nama kegiatan wajib diisi!');
+            }
+        }
+
+        function deleteEvent() {
+            events = events.filter(e => e.date !== clicked);
+            localStorage.setItem('events', JSON.stringify(events));
+            closeModal();
+        }
+
+        /* --- INIT & LISTENERS --- */
+        function init() {
+            document.getElementById('nextButton').addEventListener('click', () => { nav++; load(); });
+            document.getElementById('prevButton').addEventListener('click', () => { nav--; load(); });
+            document.getElementById('todayButton').addEventListener('click', () => { nav = 0; load(); });
+            
+            saveButton.addEventListener('click', saveEvent);
+            closeButton.addEventListener('click', closeModal);
+            deleteButton.addEventListener('click', deleteEvent);
+            closeIcon.addEventListener('click', closeModal);
+
+            window.addEventListener('click', (e) => { if(e.target === eventModal) closeModal(); });
+
+            // Theme Switcher
+            const themeToggle = document.getElementById('checkbox');
+            themeToggle.addEventListener('change', (e) => {
+                if(e.target.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+
+            if (localStorage.getItem('theme') === 'dark') {
+                themeToggle.checked = true;
+                document.body.classList.add('dark-mode');
+            }
+            
+            load();
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
